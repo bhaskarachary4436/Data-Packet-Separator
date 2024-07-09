@@ -1,0 +1,234 @@
+#include<stdio.h>
+#include<string.h>
+#include<stdlib.h>
+#define WINDOW_SIZE 14
+#define P_HEADER 12
+#define P_FOOTER 4
+#define CHAR_STRING_ADD 25
+#define WINDOWS 500
+#define CHAR_STRINGS 350
+#define TOTAL_SIZE (WINDOWS*CHAR_STRINGS)
+#define WINDOW_BOTTOM_ROW 19
+#define START_PACKET_ERROR 1
+#define END_PACKET_ERROR 2
+#define LENGTH_ERROR 3
+#define PACKET_TYPE_ERROR 4
+#define P2_DATA_NOT_PRESENT 5
+#define P1_DATA_NOT_PRESENT 6
+#define JOB_DONE 7
+int packetseparater(unsigned char *arr,unsigned char *p1,unsigned char *p2)
+{
+
+ int count=1;
+ for(int l=0;arr[l]!=0xFF;l++)
+ {
+   if(arr[l+1] != 0xFF)
+       count++;
+ }
+ int b=(count-P_HEADER)/14;
+ int q=b;
+ int counter1=0;
+ int counter2=0;
+ int g=WINDOW_BOTTOM_ROW;
+ while(q--)
+ {
+  if(arr[g]<80)
+      counter1++;
+  else
+      counter2++;
+  g=g+WINDOW_SIZE;
+ }
+ if(counter1 == 0)
+     return P1_DATA_NOT_PRESENT;
+ else if(counter2 == 0)
+     return P2_DATA_NOT_PRESENT;
+
+ memcpy(p1,arr,12);
+ memcpy(p2,arr,12);
+
+ p1[3]=0x00;
+ p1[4]=0x00;
+ p2[3]=0x00;
+ p2[4]=0x00;
+ int j=P_HEADER;
+ unsigned char *ptr=arr;
+ int n=j;
+ int m=j;
+ int k=j;
+ while(arr[j] != 0xFF && arr[j+1] != 0xFF)
+ {
+    if(arr[j+7]<80)
+    {
+        int w_size=14;
+        while(w_size--)
+        {
+           p1[n]=arr[j];
+           n++;
+           j++;
+        }
+    }
+    else
+    {
+        int w_size=14;
+        while(w_size--)
+        {
+           p2[m]=arr[j];
+           m++;
+           j++;
+        }
+    }
+  }
+p1[n]=0xFF;
+p1[n+1]=0xFF;
+p2[m]=0xFF;
+p2[m+1]=0xFF;
+n=n+2;
+m=m+2;
+int v=CHAR_STRING_ADD;
+unsigned char *ptr1;
+while(b--)
+{
+  ptr1=ptr+P_HEADER+arr[v];
+  if(arr[k+7]<80)
+  {
+     while(*ptr1 != 0xFF)
+     {
+        p1[n]=*ptr1;
+        n++;
+        ptr1++;
+     }
+     p1[n]=0xFF;
+     n++;
+     p1[n]=0xFF;
+     n++;
+  }
+  else
+  {
+       while(*ptr1 != 0xFF)
+       {
+          p2[m]=*ptr1;
+          m++;
+          ptr1++;
+       }
+       p2[m]=0xFF;
+       m++;
+       p2[m]=0xFF;
+       m++;
+  }
+  k=k+WINDOW_SIZE;
+  v=v+WINDOW_SIZE;
+}
+
+int y=P_FOOTER;
+ptr1=ptr1+2;
+while(y--)
+{
+ p1[n]=*ptr1;
+ p2[m]=*ptr1;
+ ptr1++;
+ n++;
+ m++;
+}
+
+int size1=n-6;
+int size2=m-6;
+p1[4]=size1 & ((1<<8)+(-1));
+p1[3]=(size1>>8) & ((1<<8)+(-1));
+
+p2[4]=size2 & ((1<<8)+(-1));
+p2[3]=(size2>>8) & ((1<<8)+(-1));
+
+printf("First Packet\n");
+for(int z=0;z<n;z++)
+{
+ printf("%X ",p1[z]);
+}
+printf("\nSecond Packet\n");
+for(int z=0;z<m;z++)
+{
+ printf("%X ",p2[z]);
+}
+printf("\n");
+return 0;
+}
+
+int validation(unsigned char *arr,unsigned char *p1,unsigned char *p2,int size)
+{
+int r;
+int buf=(arr[3]<<8)|arr[4];
+if (arr[0] != 0xAA || arr[1] != 0xCC || arr[2] != 0x05)
+    return START_PACKET_ERROR;
+else if(arr[size-1] != 0x04)
+    return END_PACKET_ERROR;
+else if(size != (buf+6))
+    return LENGTH_ERROR;
+else if(arr[10] != 0x81)
+    return PACKET_TYPE_ERROR;
+else
+{
+    r=packetseparater(arr,p1,p2);
+    if(r == P1_DATA_NOT_PRESENT)
+         return P1_DATA_NOT_PRESENT;
+    else if(r == P2_DATA_NOT_PRESENT)
+         return P2_DATA_NOT_PRESENT;
+}
+return JOB_DONE;
+}
+int main()
+{
+/*unsigned char arr[]={0xAA,0xCC,0x05,0x00,0x8E,0xF1,0xF2,0xF3,0xF4,0xF5,0x81,0x02,
+0x00,0x00,0x00,0x00,0x00,0x10,0x00,0x01,0x00,0x00,0x00,0x00,0x00,0x48,
+0x00,0x00,0x00,0x00,0x00,0x60,0x00,0x51,0x00,0x00,0x00,0x00,0x00,0x54,
+0x00,0x00,0x00,0x00,0x00,0x40,0x00,0x31,0x00,0x00,0x00,0x00,0x00,0x60,
+0x00,0x00,0x00,0x00,0x00,0x20,0x00,0x11,0x00,0x00,0x00,0x00,0x00,0x6C,
+0x00,0x00,0x00,0x00,0x00,0x70,0x00,0x61,0x00,0x00,0x00,0x00,0x00,0x78,0xFF,0xFF,
+0x11,0x12,0x13,0x14,0x15,0x16,0x17,0x18,0x19,0x1A,0xFF,0xFF,
+0x21,0x22,0x23,0x24,0x25,0x26,0x27,0x28,0x29,0x2A,0xFF,0xFF,
+0x31,0x32,0x33,0x34,0x35,0x36,0x37,0x38,0x39,0x3A,0xFF,0xFF,
+0x41,0x42,0x43,0x44,0x45,0x46,0x47,0x48,0x49,0x4A,0xFF,0xFF,
+0x51,0x52,0x53,0x54,0x55,0x56,0x57,0x58,0x59,0x5A,0xFF,0xFF,
+0x03,0xF4,0xF5,0x04
+};*/
+
+FILE* ptr;
+char ch,ch1;
+unsigned char arr[TOTAL_SIZE];
+unsigned char k1;
+unsigned char k2;
+int i=0;
+ptr = fopen("file22.txt","r");
+
+if(NULL == ptr)
+    printf("file can't be opened \n");
+
+while(!feof(ptr) && !ferror(ptr)){
+    ch = fgetc(ptr);
+    if(ch >= 'A' && ch <= 'Z')
+        k1=ch-'A'+10;
+    else
+        k1=ch-'0';
+
+     ch1 = fgetc(ptr);
+     if(ch1 >= 'A' && ch1 <= 'Z')
+          k2=ch1-'A'+10;
+     else
+          k2=ch1-'0';
+     unsigned char v=(k1<<4)|k2;
+     arr[i]=v;
+     i++;
+     fgetc(ptr);
+}
+fclose(ptr);
+i=i-1;
+
+unsigned char p1[TOTAL_SIZE],p2[TOTAL_SIZE];
+//int size=(sizeof(arr)/sizeof(arr[0]));
+int size=i;
+int k=validation(arr,p1,p2,size);
+if(k==7)
+    printf("\nSuccessful Separation\n");
+else
+    printf("%d\n",k);
+
+return 0;
+}
